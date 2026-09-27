@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 import pandas as pd
 import streamlit as st
-
+st.image("logo1.jpg")
 st.set_page_config(page_title="Order Nhà Hàng", layout="wide")
 
 # Đường dẫn file dữ liệu dùng chung trên máy chủ
@@ -56,7 +56,7 @@ if "admin_logged_in" not in st.session_state:
 page = st.sidebar.radio("📋 Chọn trang hệ thống", ["🍽️ Order", "🔑 Admin"])
 
 if page == "🍽️ Order":
-    st.title("🍽️ Hệ thống Order Nhà Hàng_Dr Bình")
+    st.title("🍽️ Hệ thống Order Nhà Hàng_Ms Quinh")
     st.caption("Ghi nhận order nhanh chóng và chính xác theo thời gian thực")
 
     col1, col2 = st.columns([1, 1.3])
@@ -76,7 +76,7 @@ if page == "🍽️ Order":
             if item in st.session_state.order_dict:
                 st.session_state.order_dict[item]["Số lượng"] += quantity
                 st.session_state.order_dict[item]["Thành tiền"] = (
-                st.session_state.order_dict[item]["Số lượng"] * price
+                    st.session_state.order_dict[item]["Số lượng"] * price
                 )
                 st.session_state.order_dict[item]["Bàn"] = table_number
             else:
@@ -223,7 +223,7 @@ elif page == "🔑 Admin":
                 "Tổng doanh thu tích lũy (Real-time)", f"{tong_doanh_thu:,.0f} VNĐ"
             )
             col_met2.metric(
-"Số lượng món đã phục vụ", f"{df_history['Số lượng'].sum()} phần"
+                "Số lượng món đã phục vụ", f"{df_history['Số lượng'].sum()} phần"
             )
 
             st.markdown("---")
@@ -266,4 +266,141 @@ df_history.groupby("Ngày")["Thành tiền"].sum().reset_index()
     with tab3:
         st.subheader("📊 Phân tích số liệu và Khung giờ vàng")
 
-        # Cập nhật đọc trực tiếp từ tệp tin
+        # Cập nhật đọc trực tiếp từ tệp tin CSV
+        if os.path.exists(CSV_FILE):
+            try:
+                df_anal = pd.read_csv(CSV_FILE)
+            except Exception:
+                df_anal = pd.DataFrame()
+        else:
+            df_anal = pd.DataFrame()
+
+        if not df_anal.empty:
+            df_anal["Thời gian"] = pd.to_datetime(df_anal["Thời gian"])
+            df_anal["Giờ"] = df_anal["Thời gian"].dt.hour
+            df_anal["Tháng-Năm"] = df_anal["Thời gian"].dt.strftime("%m/%Y")
+
+            # 1. Tìm các chỉ số vàng từ dữ liệu thực tế
+            best_seller = df_anal.groupby("Tên món")["Số lượng"].sum().idxmax()
+            best_seller_qty = df_anal.groupby("Tên món")["Số lượng"].sum().max()
+
+            hourly_sales = df_anal.groupby("Giờ")["Số lượng"].sum()
+            best_hour = hourly_sales.idxmax()
+            best_hour_qty = hourly_sales.max()
+
+            best_month = (
+                df_anal.groupby("Tháng-Năm")["Thành tiền"].sum().idxmax()
+            )
+            best_month_rev = (
+                df_anal.groupby("Tháng-Năm")["Thành tiền"].sum().max()
+            )
+
+            col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+            with col_kpi1:
+                st.info("🏆 MÓN BÁN CHẠY NHẤT")
+                st.metric(label=best_seller, value=f"{best_seller_qty} phần")
+            with col_kpi2:
+                st.warning("⚡ KHUNG GIỜ VÀNG (Đông khách nhất)")
+                st.metric(
+                    label=f"Khung giờ: {best_hour:02d}:00 - {(best_hour+1):02d}:00",
+value=f"{best_hour_qty} phần",
+                )
+            with col_kpi3:
+                st.success("📅 THÁNG DOANH THU ĐỈNH ĐIỂM")
+                st.metric(label=f"Tháng {best_month}", value=f"{best_month_rev:,.0f} VNĐ")
+
+            st.markdown("---")
+
+            # Phân tích chi tiết lượng bán/doanh thu từng món ăn
+            st.write("### 🍔 Doanh thu & Số lượng tiêu thụ của từng món ăn")
+            summary_mon = (
+                df_anal.groupby("Tên món")
+                .agg(
+                    Số_lượng_bán=("Số lượng", "sum"),
+                    Doanh_thu=("Thành tiền", "sum"),
+                )
+                .reset_index()
+            )
+            summary_mon = summary_mon.sort_values(
+                by="Số_lượng_bán", ascending=False
+            )
+
+            col_chart1, col_table1 = st.columns([1.5, 1])
+            with col_chart1:
+                st.write("**Biểu đồ cột thể hiện Tổng số lượng bán ra:**")
+                st.bar_chart(summary_mon.set_index("Tên món")["Số_lượng_bán"])
+            with col_table1:
+                st.write("**Số liệu doanh thu thực tế từng món:**")
+                st.dataframe(
+                    summary_mon.style.format({"Doanh_thu": "{:,.0f} VNĐ"}),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+            st.markdown("---")
+
+            # Phân tích khung giờ vàng bán chạy trong ngày (0h - 23h)
+            st.write("### ⏰ Thống kê lượng khách đặt theo Khung giờ (0h - 23h)")
+            summary_gio = (
+                df_anal.groupby("Giờ")
+                .agg(
+                    Số_lượng_món=("Số lượng", "sum"),
+                    Doanh_thu=("Thành tiền", "sum"),
+                )
+                .reset_index()
+            )
+
+            all_hours = pd.DataFrame({"Giờ": range(24)})
+            summary_gio = pd.merge(
+                all_hours, summary_gio, on="Giờ", how="left"
+            ).fillna(0)
+
+            col_chart2, col_info2 = st.columns([1.5, 1])
+            with col_chart2:
+                st.write("**Biểu đồ lượng bán theo từng khung giờ trong ngày:**")
+                st.bar_chart(summary_gio.set_index("Giờ")["Số_lượng_món"])
+            with col_info2:
+                st.write("**Thời điểm bán chạy nhất trong ngày:**")
+                st.markdown(
+                    f"👉 Khung giờ đắt khách nhất hiện tại dựa trên hóa đơn thực tế là từ **{best_hour:02d}:00 - {(best_hour+1):02d}:00** với tổng cộng **{best_hour_qty} phần** được thanh toán."
+                )
+                st.dataframe(
+                    summary_gio[summary_gio["Số_lượng_món"] > 0].style.format(
+                        {"Doanh_thu": "{:,.0f} VNĐ"}
+                    ),
+                    use_container_width=True,
+hide_index=True,
+                )
+
+            st.markdown("---")
+
+            # Phân tích biến động doanh thu theo tháng
+            st.write("### 📅 Doanh thu bán hàng theo Tháng")
+            df_anal["Tháng_Số"] = df_anal["Thời gian"].dt.month
+            summary_thang = (
+                df_anal.groupby(["Tháng_Số", "Tháng-Năm"])
+                .agg(
+                    Số_lượng_bán=("Số lượng", "sum"),
+                    Doanh_thu=("Thành tiền", "sum"),
+                )
+                .reset_index()
+                .sort_values("Tháng_Số")
+            )
+
+            col_chart3, col_table3 = st.columns([1.5, 1])
+            with col_chart3:
+                st.write("**Biểu đồ cột tăng trưởng doanh thu qua các tháng:**")
+                st.bar_chart(summary_thang.set_index("Tháng-Năm")["Doanh_thu"])
+            with col_table3:
+                st.write("**Tổng doanh thu chi tiết từng tháng:**")
+                st.dataframe(
+                    summary_thang[
+                        ["Tháng-Năm", "Số_lượng_bán", "Doanh_thu"]
+                    ].style.format({"Doanh_thu": "{:,.0f} VNĐ"}),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+        else:
+            st.info(
+                "Chưa có dữ liệu giao dịch để thống kê. Hãy tiến hành thanh toán một vài đơn hàng trước."
+            )
