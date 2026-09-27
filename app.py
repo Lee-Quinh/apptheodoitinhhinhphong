@@ -145,7 +145,7 @@ if page == "🧹 Quản Lý Dọn Phòng":
             return color_map.get(val, "")
 
         st.dataframe(
-            df_display.style.applymap(highlight_status, subset=["Trạng thái"]),
+            df_display.style.map(highlight_status, subset=["Trạng thái"]),
             use_container_width=True,
             hide_index=True
         )
