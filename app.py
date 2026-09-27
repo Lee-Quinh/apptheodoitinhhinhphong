@@ -56,7 +56,7 @@ if "admin_logged_in" not in st.session_state:
 
 # Lưu trạng thái phòng xuống file
 def save_room_status():
-    st.session_state.rooms_df.to_csv(ROOM_STATUS_FILE, index=False, encoding="utf-8-sig_Ms Quinh")
+    st.session_state.rooms_df.to_csv(ROOM_STATUS_FILE, index=False, encoding="utf-8-sig")
 
 # Lưu lịch sử xuống file
 def save_history():
